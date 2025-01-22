@@ -15,78 +15,133 @@
             padding: 0;
             height: 100%;
             width: 100%;
-            overflow: hidden;
+            background: black;
         }
-        #ytWrapper {
+        #player {
             width: 100%;
             height: 100%;
             border: none;
         }
+        #searchBar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 10px;
+            background: #212121;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+        #searchInput {
+            flex-grow: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            background: #303030;
+            color: white;
+        }
+        #searchButton {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #303030;
+            color: white;
+            cursor: pointer;
+        }
+        #playerContainer {
+            margin-top: 60px;
+            height: calc(100% - 60px);
+        }
     </style>
 </head>
 <body>
+    <div id="searchBar">
+        <input type="text" id="searchInput" placeholder="Enter YouTube video ID or URL">
+        <button id="searchButton">Load</button>
+    </div>
+    <div id="playerContainer">
+        <div id="player"></div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script>
-        // Function to create a blob URL with our injection script
-        function createInjectedUrl() {
-            const script = `
-                function blockAds() {
-                    // Video ads
-                    document.querySelectorAll('.video-ads').forEach(ad => ad.remove());
-                    document.querySelectorAll('.ytp-ad-overlay-container').forEach(ad => ad.remove());
-                    
-                    // Additional ad elements
-                    const adSelectors = [
-                        '.ad-showing',
-                        '.ytp-ad-text',
-                        '.ytp-ad-preview-container',
-                        '.ytp-ad-skip-button',
-                        'ytd-promoted-video-renderer',
-                        '.ytd-advertisement-container'
-                    ];
-                    
-                    adSelectors.forEach(selector => {
-                        document.querySelectorAll(selector).forEach(el => el.remove());
-                    });
-
-                    // Skip video ads
-                    const video = document.querySelector('video');
-                    if (video && document.querySelector('.ad-showing')) {
-                        video.currentTime = video.duration;
-                    }
+        let player;
+        
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: 'dQw4w9WgXcQ', // Default video
+                playerVars: {
+                    'autoplay': 0,
+                    'playsinline': 1,
+                    'controls': 1,
+                    'rel': 0,
+                    'modestbranding': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
                 }
-
-                // Run immediately and set up observer
-                blockAds();
-                new MutationObserver(blockAds).observe(document.body, {
-                    childList: true,
-                    subtree: true
-                });
-            `;
-
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <script>${script}<\/script>
-                </head>
-                <body>
-                    <script>
-                        window.location.href = 'https://m.youtube.com';
-                    <\/script>
-                </body>
-                </html>
-            `;
-
-            const blob = new Blob([html], { type: 'text/html' });
-            return URL.createObjectURL(blob);
+            });
         }
 
-        // Create wrapper iframe
-        const iframe = document.createElement('iframe');
-        iframe.id = 'ytWrapper';
-        iframe.src = createInjectedUrl();
-        document.body.appendChild(iframe);
+        function onPlayerReady(event) {
+            // Block ads when player is ready
+            blockAds();
+        }
+
+        function onPlayerStateChange(event) {
+            // Block ads on state change
+            blockAds();
+        }
+
+        function blockAds() {
+            const adElements = document.querySelectorAll('.video-ads, .ytp-ad-overlay-container, .ytp-ad-skip-button');
+            adElements.forEach(ad => ad.remove());
+
+            // Try to skip ad if playing
+            const iframe = document.querySelector('#player');
+            if (iframe) {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                const video = iframeDoc.querySelector('video');
+                if (video && iframeDoc.querySelector('.ad-showing')) {
+                    video.currentTime = video.duration;
+                }
+            }
+        }
+
+        // Set up ad blocking observer
+        const observer = new MutationObserver(blockAds);
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Handle video loading
+        document.getElementById('searchButton').addEventListener('click', () => {
+            const input = document.getElementById('searchInput').value;
+            let videoId = input;
+            
+            // Extract video ID if full URL is pasted
+            if (input.includes('youtube.com') || input.includes('youtu.be')) {
+                const url = new URL(input);
+                videoId = url.searchParams.get('v') || 
+                         input.split('youtu.be/')[1] ||
+                         input.split('embed/')[1];
+            }
+            
+            if (videoId) {
+                player.loadVideoById(videoId);
+            }
+        });
+
+        // Handle enter key in search input
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('searchButton').click();
+            }
+        });
     </script>
 </body>
 </html>
