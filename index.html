@@ -14,134 +14,104 @@
             margin: 0;
             padding: 0;
             height: 100%;
-            width: 100%;
-            background: black;
+            overflow: hidden;
         }
-        #player {
+        #youtube {
             width: 100%;
             height: 100%;
             border: none;
         }
-        #searchBar {
-            position: fixed;
-            top: 0;
-            width: 100%;
-            padding: 10px;
-            background: #212121;
-            z-index: 1000;
-            display: flex;
-            gap: 10px;
-        }
-        #searchInput {
-            flex-grow: 1;
-            padding: 8px;
-            border: none;
-            border-radius: 4px;
-            background: #303030;
-            color: white;
-        }
-        #searchButton {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            background: #303030;
-            color: white;
-            cursor: pointer;
-        }
-        #playerContainer {
-            margin-top: 60px;
-            height: calc(100% - 60px);
-        }
     </style>
 </head>
 <body>
-    <div id="searchBar">
-        <input type="text" id="searchInput" placeholder="Enter YouTube video ID or URL">
-        <button id="searchButton">Load</button>
-    </div>
-    <div id="playerContainer">
-        <div id="player"></div>
-    </div>
-
-    <script src="https://www.youtube.com/iframe_api"></script>
+    <iframe id="youtube" src="https://m.youtube.com" allow="autoplay; fullscreen"></iframe>
     <script>
-        let player;
-        
-        function onYouTubeIframeAPIReady() {
-            player = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
-                videoId: 'dQw4w9WgXcQ', // Default video
-                playerVars: {
-                    'autoplay': 0,
-                    'playsinline': 1,
-                    'controls': 1,
-                    'rel': 0,
-                    'modestbranding': 1
-                },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange
-                }
-            });
-        }
-
-        function onPlayerReady(event) {
-            // Block ads when player is ready
-            blockAds();
-        }
-
-        function onPlayerStateChange(event) {
-            // Block ads on state change
-            blockAds();
-        }
-
-        function blockAds() {
-            const adElements = document.querySelectorAll('.video-ads, .ytp-ad-overlay-container, .ytp-ad-skip-button');
-            adElements.forEach(ad => ad.remove());
-
-            // Try to skip ad if playing
-            const iframe = document.querySelector('#player');
-            if (iframe) {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                const video = iframeDoc.querySelector('video');
-                if (video && iframeDoc.querySelector('.ad-showing')) {
-                    video.currentTime = video.duration;
-                }
-            }
-        }
-
-        // Set up ad blocking observer
-        const observer = new MutationObserver(blockAds);
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        // Handle video loading
-        document.getElementById('searchButton').addEventListener('click', () => {
-            const input = document.getElementById('searchInput').value;
-            let videoId = input;
+        // More aggressive ad blocking script
+        function injectAdBlocker() {
+            const frame = document.getElementById('youtube');
             
-            // Extract video ID if full URL is pasted
-            if (input.includes('youtube.com') || input.includes('youtu.be')) {
-                const url = new URL(input);
-                videoId = url.searchParams.get('v') || 
-                         input.split('youtu.be/')[1] ||
-                         input.split('embed/')[1];
-            }
-            
-            if (videoId) {
-                player.loadVideoById(videoId);
-            }
-        });
+            // Function to be injected into the iframe
+            const blockAdsCode = `
+                // Create style element to hide ad-related elements
+                const style = document.createElement('style');
+                style.textContent = \`
+                    .video-ads,
+                    .ytp-ad-overlay-container,
+                    .ytp-ad-overlay-image,
+                    .ytp-ad-overlay,
+                    .ytp-ad-progress-list,
+                    .ytp-ad-message-container,
+                    .ytp-ad-button-icon,
+                    .ytp-ad-button-icon-default,
+                    .ytp-ad-button-icon-disabled,
+                    .ytp-ad-button-icon-clicked,
+                    .ytp-ad-button-container,
+                    .ytp-ad-text,
+                    .ytp-ad-preview-container,
+                    .ytp-ad-skip-button,
+                    ytd-promoted-sparkles-web-renderer,
+                    ytd-display-ad-renderer,
+                    ytd-promoted-video-renderer,
+                    ytd-video-masthead-ad-v3-renderer,
+                    ytd-ad-slot-renderer,
+                    ytm-promoted-video-renderer,
+                    .ad-showing,
+                    .ytd-in-feed-ad-layout-renderer,
+                    .ytd-banner-promo-renderer,
+                    .masthead-ad,
+                    #masthead-ad,
+                    #player-ads,
+                    #search-pva,
+                    #premium-upsell,
+                    #feed-pyv-container,
+                    .style-scope.ytd-video-masthead-ad-v3-renderer,
+                    .style-scope.ytd-player-legacy-desktop-watch-ads-renderer,
+                    .style-scope.ytd-statement-banner-renderer,
+                    .style-scope.ytd-display-ad-renderer,
+                    .style-scope.ytd-ad-slot-renderer,
+                    .style-scope.ytd-in-feed-ad-layout-renderer {
+                        display: none !important;
+                    }
+                \`;
+                document.head.appendChild(style);
 
-        // Handle enter key in search input
-        document.getElementById('searchInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('searchButton').click();
-            }
-        });
+                // Function to skip ads
+                function skipAd() {
+                    const video = document.querySelector('video');
+                    if (video && document.querySelector('.ad-showing')) {
+                        video.currentTime = video.duration;
+                    }
+                }
+
+                // Run continuously
+                setInterval(skipAd, 100);
+
+                // Observe DOM changes to remove new ads
+                new MutationObserver((mutations) => {
+                    skipAd();
+                }).observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            `;
+
+            // Try to inject the script when frame loads
+            frame.onload = function() {
+                try {
+                    const doc = frame.contentDocument || frame.contentWindow.document;
+                    const script = doc.createElement('script');
+                    script.textContent = blockAdsCode;
+                    doc.body.appendChild(script);
+                } catch (e) {
+                    console.log('Could not inject directly, trying alternative method');
+                    // Alternative injection method if direct access is blocked
+                    frame.src = 'javascript: (' + blockAdsCode + ')(); void 0; location.href="https://m.youtube.com";';
+                }
+            };
+        }
+
+        // Initialize ad blocker
+        injectAdBlocker();
     </script>
 </body>
 </html>
