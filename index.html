@@ -2,71 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <title>YouTube PWA</title>
+    <meta name="apple-mobile-web-app-title" content="YT">
+    <title>YouTube</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon.png">
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            width: 100vw;
-        }
-        #youtube-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
+        body { margin: 0; padding: 0; }
     </style>
 </head>
 <body>
-    <iframe id="youtube-frame" src="https://www.youtube.com"></iframe>
     <script>
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(registration => console.log('ServiceWorker registered'))
-                .catch(err => console.log('ServiceWorker registration failed:', err));
+        // Inject our script into YouTube
+        function injectScript() {
+            const script = `
+                function blockAds() {
+                    // Video ads
+                    document.querySelectorAll('.video-ads').forEach(ad => ad.remove());
+                    document.querySelectorAll('.ytp-ad-overlay-container').forEach(ad => ad.remove());
+                    
+                    // Additional ad elements
+                    const adSelectors = [
+                        '.ad-showing',
+                        '.ytp-ad-text',
+                        '.ytp-ad-preview-container',
+                        '.ytp-ad-skip-button',
+                        'ytd-promoted-video-renderer',
+                        '.ytd-advertisement-container'
+                    ];
+                    
+                    adSelectors.forEach(selector => {
+                        document.querySelectorAll(selector).forEach(el => el.remove());
+                    });
+
+                    // Skip video ads
+                    const video = document.querySelector('video');
+                    if (video && document.querySelector('.ad-showing')) {
+                        video.currentTime = video.duration;
+                    }
+                }
+
+                // Run on load and set up observer
+                blockAds();
+                new MutationObserver(blockAds).observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            `;
+
+            // Create script element
+            const scriptElement = document.createElement('script');
+            scriptElement.textContent = script;
+            document.body.appendChild(scriptElement);
         }
 
-        // Inject ad blocking script into iframe
-        window.onload = function() {
-            const frame = document.getElementById('youtube-frame');
-            frame.contentWindow.postMessage({
-                type: 'INJECT_SCRIPT',
-                script: `
-                    function blockAds() {
-                        // Find and remove all video ads
-                        document.querySelectorAll('.video-ads').forEach(ad => ad.remove());
-                        
-                        // Remove all banner ads
-                        document.querySelectorAll('.ytp-ad-overlay-container').forEach(ad => ad.remove());
-                        
-                        // Additional selectors for common ad elements
-                        const adSelectors = [
-                            '.ad-showing',
-                            '.ytp-ad-text',
-                            '.ytp-ad-preview-container',
-                            '.ytp-ad-skip-button'
-                        ];
-                        
-                        adSelectors.forEach(selector => {
-                            document.querySelectorAll(selector).forEach(el => el.remove());
-                        });
-                    }
-
-                    // Run immediately and set up mutation observer
-                    blockAds();
-                    new MutationObserver(blockAds).observe(document.body, {
-                        childList: true,
-                        subtree: true
-                    });
-                `
-            }, '*');
-        };
+        // Redirect to YouTube mobile and inject our script
+        window.location.href = 'javascript:(' + injectScript.toString() + ')(); window.location.href = "https://m.youtube.com";';
     </script>
 </body>
 </html>
