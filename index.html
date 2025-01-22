@@ -10,13 +10,24 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon.png">
     <style>
-        body { margin: 0; padding: 0; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        #ytWrapper {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
     </style>
 </head>
 <body>
     <script>
-        // Inject our script into YouTube
-        function injectScript() {
+        // Function to create a blob URL with our injection script
+        function createInjectedUrl() {
             const script = `
                 function blockAds() {
                     // Video ads
@@ -44,7 +55,7 @@
                     }
                 }
 
-                // Run on load and set up observer
+                // Run immediately and set up observer
                 blockAds();
                 new MutationObserver(blockAds).observe(document.body, {
                     childList: true,
@@ -52,14 +63,30 @@
                 });
             `;
 
-            // Create script element
-            const scriptElement = document.createElement('script');
-            scriptElement.textContent = script;
-            document.body.appendChild(scriptElement);
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <script>${script}<\/script>
+                </head>
+                <body>
+                    <script>
+                        window.location.href = 'https://m.youtube.com';
+                    <\/script>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob([html], { type: 'text/html' });
+            return URL.createObjectURL(blob);
         }
 
-        // Redirect to YouTube mobile and inject our script
-        window.location.href = 'javascript:(' + injectScript.toString() + ')(); window.location.href = "https://m.youtube.com";';
+        // Create wrapper iframe
+        const iframe = document.createElement('iframe');
+        iframe.id = 'ytWrapper';
+        iframe.src = createInjectedUrl();
+        document.body.appendChild(iframe);
     </script>
 </body>
 </html>
